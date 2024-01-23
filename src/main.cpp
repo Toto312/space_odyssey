@@ -231,7 +231,7 @@ void draw() {
     for (auto& asteroid : asteroids) {
         DrawRectangleV(asteroid.position,asteroid.size,RED);
         DrawTexturePro(asteroid_texture, Rectangle{0,0,64,64}, Rectangle{asteroid.position.x,asteroid.position.y,asteroid.size.x,asteroid.size.y}, Vector2{size.x/2,size.y/2}, asteroid.rotation, WHITE);
-    }
+    }  
 
     DrawTexturePro(player_texture, Rectangle{0,0,32,32}, Rectangle{player_position.x,player_position.y,32,32}, Vector2{16,16}, player_rotation, WHITE);
     DrawCircleV(player_position, 16, RED);
