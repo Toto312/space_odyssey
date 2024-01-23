@@ -9,12 +9,25 @@
 
 #define PRINT_VECTOR(v1) std::cout << "x: " << (v1).x << ", y: " << (v1).y << "\n";
 
-Font font;
+enum class Mode {
+    MENU,
+    GAME,
+    OPTIONS
+};
 
 int score = 0;
 float dt = 0;
+float fps = 60;
 Vector2 screen_size = Vector2{ 800, 600 };
 bool pause = false;
+bool debug = false;
+Mode mode = Mode::MENU;
+
+Sound fx_shoot;
+
+Font font;
+int size_font = 30;
+int spacing = 1;
 
 Texture2D player_texture;
 Vector2 player_position = Vector2{ 400, 300 };
@@ -24,7 +37,12 @@ float rotation_speed = 200.f;
 
 Texture2D asteroid_texture;
 float time_since_last_asteroid = 0;
-float asteroid_appear_threshold = 0.5f;
+float asteroid_appear_threshold = 0.1f;
+
+Texture2D logo_texture;
+Vector2 logo_position = Vector2{ 400, 100 };
+
+Texture2D bg_texture;
 
 struct Asteroid {
     Vector2 position;
@@ -53,20 +71,17 @@ void draw();
 void update();
 void start_again();
 void update_collisions();
-
-
-float randf() {
-    return static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-}
+void update_ui();
 
 int main()
 {
-    SetTraceLogLevel(LOG_ERROR);
+    //SetTraceLogLevel(LOG_ERROR);
     InitWindow(screen_size.x, screen_size.y, "Space Odyssey");
+    InitAudioDevice();
 
     load();
 
-    asteroids.push_back(Asteroid{Vector2{100,100},Vector2{100,100},0.f});
+    SetTargetFPS(fps);
 
     while (!WindowShouldClose())
     {
@@ -90,17 +105,27 @@ int main()
 void load() {
     player_texture = LoadTexture("assets/player.png");
     asteroid_texture = LoadTexture("assets/asteroid.png");
+    logo_texture = LoadTexture("assets/logo.png");
+    bg_texture = LoadTexture("assets/bg.png");
+
     font = LoadFont("assets/font.ttf");
+    fx_shoot = LoadSound("assets/shooting.mp3");
 }
 
 void unload() {
     UnloadTexture(player_texture);
     UnloadTexture(asteroid_texture);
+    UnloadTexture(logo_texture);
+    UnloadTexture(bg_texture);
+
     UnloadFont(font);
+    UnloadSound(fx_shoot);
+
+    CloseAudioDevice();
 }
 
 void make_bullet() {
-    // make the bullet appear in the top of the player
+    PlaySound(fx_shoot);
     Bullet bullet = Bullet{player_position,player_rotation-90.f};
     bullets.push_back(bullet);
 }
@@ -108,11 +133,12 @@ void make_bullet() {
 void make_asteroid() {
     int random_val = GetRandomValue(32,static_cast<int>(screen_size.x/4));
     Vector2 size = Vector2{static_cast<float>(random_val),static_cast<float>(random_val)};
+
     // Generate x-coordinate outside of the window
-    int x = (rand() % 2 == 0) ? GetRandomValue(-size.x, 0) : GetRandomValue(screen_size.x, screen_size.y + size.x);
+    int x = (rand() % 2 == 0) ? (-size.x) : (screen_size.y + size.x+50);
 
     // Generate y-coordinate outside of the window
-    int y = (rand() % 2 == 0) ? GetRandomValue(-size.y, 0) : GetRandomValue(screen_size.y, screen_size.y + size.y);
+    int y = (rand() % 2 == 0) ? (-size.y) : (screen_size.y + size.y+50);
 
     Vector2 position = Vector2{static_cast<float>(x), static_cast<float>(y)};
 
@@ -152,6 +178,7 @@ void update_player() {
 
 void update_bullets() {
     if(pause) return;
+    
     if(IsKeyPressed(KEY_SPACE)) {
         make_bullet();
     }
@@ -170,19 +197,33 @@ void update_bullets() {
 void update_collisions() {
     for (auto& asteroid : asteroids) {
         // check player collision
-        if(CheckCollisionCircles(asteroid.position, asteroid.size.x/4, player_position, 16)) {
+        if(CheckCollisionCircles(Vector2{asteroid.position.x+asteroid.size.x/2,asteroid.position.y+asteroid.size.y/2}, asteroid.size.x/2.5, player_position, 16)) {
             start_again();
             return;
         }
     }
 
     if(bullets.empty()) return;
+
     for (std::vector<Bullet>::iterator it = bullets.begin(); it != bullets.end();) {
         if(it->position.x < 0 || it->position.x > screen_size.x || it->position.y < 0 || it->position.y > screen_size.y) {
             it = bullets.erase(it);
         } else {
             ++it;
         }
+    }
+
+    for (std::vector<Asteroid>::iterator it1 = asteroids.begin(); it1 != asteroids.end();) {
+        for (std::vector<Bullet>::iterator it = bullets.begin(); it != bullets.end();) {
+            if(CheckCollisionCircles(Vector2{it1->position.x+it1->size.x/2,it1->position.y+it1->size.y/2}, it1->size.x/2.5, it->position, 10)) {
+                it = bullets.erase(it);
+                it1 = asteroids.erase(it1);
+                score++;
+            } else {
+                ++it;
+            }
+        }
+        ++it1;
     }
 }
 
@@ -193,7 +234,9 @@ void update_asteroids() {
         make_asteroid();
         time_since_last_asteroid = GetTime();
     }
+
     if(asteroids.empty()) return;
+
     for (auto& asteroid : asteroids) {
         Vector2 rotation_position = Vector2{cos(asteroid.rotation * DEG2RAD),
                                             sin(asteroid.rotation * DEG2RAD)};
@@ -209,34 +252,75 @@ void start_again() {
     player_position = Vector2{ 400, 300 };
 }
 
+void update_ui() {
+    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        Vector2 position = GetMousePosition();
+        std::string play_text = std::string("PLAY");
+        Vector2 size_play = MeasureTextEx(font, play_text.c_str(), size_font, spacing);
+        if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.5f - size_play.x*0.5f,screen_size.x*0.4f - size_play.y*0.5f,size_play.x,size_play.y})) {
+            mode = Mode::GAME;
+        } else {
+            mode = Mode::OPTIONS;
+        }
+    }
+}
+
 void update() {
     if(IsKeyPressed(KEY_P)) {
         pause = !pause;
     }
     update_player();
     update_bullets();
-    //update_asteroids();
+    update_asteroids();
     update_collisions();
+
+    update_ui();
 }
 
 void draw() {
     std::string score_text = std::string("Score: ")+std::to_string(score);
-    int size_font = 30;
-    int spacing = 1;
     Vector2 size = MeasureTextEx(font, score_text.c_str(), size_font, spacing);
     Vector2 score_position = Vector2{screen_size.x - size.x - size.x*0.1f,screen_size.x*0.05f};
 
-    for (auto& bullet : bullets) {
-        DrawRectanglePro(Rectangle{bullet.position.x+2.5f,bullet.position.y,10,5}, Vector2{5,5}, bullet.rotation, WHITE);
+    std::string play_text = std::string("PLAY");
+    Vector2 size_play = MeasureTextEx(font, play_text.c_str(), size_font, spacing);
+    Vector2 play_text_position = Vector2{screen_size.x*0.5f - size_play.x*0.5f,screen_size.x*0.4f - size_play.y*0.5f};
+
+    std::string options_text = std::string("OPTIONS");
+    Vector2 size_options = MeasureTextEx(font, options_text.c_str(), size_font, spacing);
+    Vector2 options_text_position = Vector2{screen_size.x*0.5f - size_options.x*0.5f,screen_size.x*0.5f - size_options.y*0.5f};
+
+    DrawTextureEx(bg_texture, Vector2{0,0}, 0, 13, WHITE);
+
+    switch (mode)
+    {
+    case Mode::MENU:
+        DrawTextureEx(logo_texture, Vector2{logo_position.x - (logo_texture.width*2.5f)/2,logo_position.y - logo_texture.height/2}, 0, 2.5f, WHITE);
+        DrawTextEx(font, "PLAY", play_text_position, size_font, spacing, WHITE);
+        DrawTextEx(font, "OPTIONS", options_text_position, size_font, spacing, WHITE);
+
+        break;
+    case Mode::GAME:
+
+        for (auto& bullet : bullets) {
+            DrawRectanglePro(Rectangle{bullet.position.x+2.5f,bullet.position.y,10,5}, Vector2{5,5}, bullet.rotation, WHITE);
+            if(debug) DrawCircle(bullet.position.x,bullet.position.y,10,WHITE);
+        }
+
+        for (auto& asteroid : asteroids) {
+            Vector2 size = asteroid.size;
+            Vector2 position = asteroid.position;
+            if(debug) DrawCircle(position.x+size.x/2,position.y+size.y/2,size.x/2.5,WHITE);
+            DrawTexturePro(asteroid_texture, Rectangle{0,0,64,64}, 
+                            Rectangle{position.x+size.x/2,position.y+size.y/2,size.x,size.y},Vector2{size.x/2,size.y/2}, asteroid.rotation, WHITE);
+        } 
+
+        DrawTexturePro(player_texture, Rectangle{0,0,32,32}, Rectangle{player_position.x,player_position.y,32,32}, Vector2{16,16}, player_rotation, WHITE);
+        if(debug) DrawCircleV(player_position, 16, RED);
+
+        DrawTextEx(font, score_text.c_str(), score_position, size_font, spacing, WHITE);
+
+    default:
+        break;
     }
-
-    for (auto& asteroid : asteroids) {
-        DrawRectangleV(asteroid.position,asteroid.size,RED);
-        DrawTexturePro(asteroid_texture, Rectangle{0,0,64,64}, Rectangle{asteroid.position.x,asteroid.position.y,asteroid.size.x,asteroid.size.y}, Vector2{size.x/2,size.y/2}, asteroid.rotation, WHITE);
-    }  
-
-    DrawTexturePro(player_texture, Rectangle{0,0,32,32}, Rectangle{player_position.x,player_position.y,32,32}, Vector2{16,16}, player_rotation, WHITE);
-    DrawCircleV(player_position, 16, RED);
-
-    DrawTextEx(font, score_text.c_str(), score_position, size_font, spacing, WHITE);
 }
