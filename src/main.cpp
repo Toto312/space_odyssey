@@ -66,6 +66,8 @@ int main()
 
     load();
 
+    asteroids.push_back(Asteroid{Vector2{100,100},Vector2{100,100},0.f});
+
     while (!WindowShouldClose())
     {
         dt = GetFrameTime();
@@ -213,7 +215,7 @@ void update() {
     }
     update_player();
     update_bullets();
-    update_asteroids();
+    //update_asteroids();
     update_collisions();
 }
 
