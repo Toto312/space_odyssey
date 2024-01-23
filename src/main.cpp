@@ -19,9 +19,10 @@ int score = 0;
 float dt = 0;
 float fps = 60;
 Vector2 screen_size = Vector2{ 800, 600 };
-bool pause = false;
+bool pause = true;
 bool debug = false;
 Mode mode = Mode::MENU;
+bool sound_on = true;
 
 Sound fx_shoot;
 
@@ -75,10 +76,11 @@ void update_ui();
 
 int main()
 {
-    //SetTraceLogLevel(LOG_ERROR);
+    SetTraceLogLevel(LOG_ERROR);
     InitWindow(screen_size.x, screen_size.y, "Space Odyssey");
     InitAudioDevice();
 
+    SetExitKey(KEY_NULL);
     load();
 
     SetTargetFPS(fps);
@@ -125,7 +127,7 @@ void unload() {
 }
 
 void make_bullet() {
-    PlaySound(fx_shoot);
+    if(sound_on) PlaySound(fx_shoot);
     Bullet bullet = Bullet{player_position,player_rotation-90.f};
     bullets.push_back(bullet);
 }
@@ -255,12 +257,37 @@ void start_again() {
 void update_ui() {
     if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         Vector2 position = GetMousePosition();
-        std::string play_text = std::string("PLAY");
-        Vector2 size_play = MeasureTextEx(font, play_text.c_str(), size_font, spacing);
-        if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.5f - size_play.x*0.5f,screen_size.x*0.4f - size_play.y*0.5f,size_play.x,size_play.y})) {
-            mode = Mode::GAME;
-        } else {
-            mode = Mode::OPTIONS;
+
+        Vector2 size_play = MeasureTextEx(font, "PLAY", size_font, spacing);
+        Vector2 size_options = MeasureTextEx(font, "OPTIONS", size_font, spacing);
+        Vector2 size_exit = MeasureTextEx(font, "EXIT", size_font, spacing);
+
+        std::string sound_text = std::string("Sound: ") + (sound_on ? std::string("True") : std::string("false"));
+        Vector2 size_sound = MeasureTextEx(font, sound_text.c_str(), 40, spacing);
+
+        switch(mode) {
+            case Mode::MENU:
+                if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.5f - size_play.x*0.5f,screen_size.y*0.5f - size_play.y*0.5f,size_play.x,size_play.y})) {
+                    mode = Mode::GAME;
+                    pause = false;
+                } else if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.5f - size_options.x*0.5f,screen_size.y*0.6f - size_options.y*0.5f,size_options.x,size_options.y})) {
+                    mode = Mode::OPTIONS;
+                    pause = true;
+                } else if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.5f - size_exit.x*0.5f,screen_size.y*0.7f - size_exit.y*0.5f,size_exit.x,size_exit.y})) {
+                    unload();
+                    CloseWindow();
+                    exit(0);
+                }
+                break;
+
+            case Mode::OPTIONS:
+                if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.2f - size_sound.x*0.5f,screen_size.y*0.2f - size_sound.y*0.5f,size_sound.x,size_sound.y})) {
+                    sound_on = !sound_on;
+                }
+                break;
+
+            default:
+                break;
         }
     }
 }
@@ -268,6 +295,10 @@ void update_ui() {
 void update() {
     if(IsKeyPressed(KEY_P)) {
         pause = !pause;
+    }
+    if(IsKeyPressed(KEY_ESCAPE)) {
+        mode = Mode::MENU;
+        pause = true;
     }
     update_player();
     update_bullets();
@@ -280,15 +311,24 @@ void update() {
 void draw() {
     std::string score_text = std::string("Score: ")+std::to_string(score);
     Vector2 size = MeasureTextEx(font, score_text.c_str(), size_font, spacing);
-    Vector2 score_position = Vector2{screen_size.x - size.x - size.x*0.1f,screen_size.x*0.05f};
+    Vector2 score_position = Vector2{screen_size.x - size.x - size.x*0.1f,screen_size.y*0.05f};
 
     std::string play_text = std::string("PLAY");
     Vector2 size_play = MeasureTextEx(font, play_text.c_str(), size_font, spacing);
-    Vector2 play_text_position = Vector2{screen_size.x*0.5f - size_play.x*0.5f,screen_size.x*0.4f - size_play.y*0.5f};
+    Vector2 play_text_position = Vector2{screen_size.x*0.5f - size_play.x*0.5f,screen_size.y*0.5f - size_play.y*0.5f};
 
     std::string options_text = std::string("OPTIONS");
     Vector2 size_options = MeasureTextEx(font, options_text.c_str(), size_font, spacing);
-    Vector2 options_text_position = Vector2{screen_size.x*0.5f - size_options.x*0.5f,screen_size.x*0.5f - size_options.y*0.5f};
+    Vector2 options_text_position = Vector2{screen_size.x*0.5f - size_options.x*0.5f,screen_size.y*0.6f - size_options.y*0.5f};
+
+    std::string exit_text = std::string("EXIT");
+    Vector2 size_exit = MeasureTextEx(font, exit_text.c_str(), size_font, spacing);
+    Vector2 exit_text_position = Vector2{screen_size.x*0.5f - size_exit.x*0.5f,screen_size.y*0.7f - size_exit.y*0.5f};
+
+    std::string sound_text = std::string("Sound: ") + (sound_on ? std::string("True") : std::string("false"));
+    Vector2 size_sound = MeasureTextEx(font, sound_text.c_str(), 40, spacing);
+    Vector2 sound_text_position = Vector2{screen_size.x*0.2f - size_sound.x*0.5f,screen_size.y*0.2f - size_sound.y*0.5f};
+
 
     DrawTextureEx(bg_texture, Vector2{0,0}, 0, 13, WHITE);
 
@@ -298,10 +338,10 @@ void draw() {
         DrawTextureEx(logo_texture, Vector2{logo_position.x - (logo_texture.width*2.5f)/2,logo_position.y - logo_texture.height/2}, 0, 2.5f, WHITE);
         DrawTextEx(font, "PLAY", play_text_position, size_font, spacing, WHITE);
         DrawTextEx(font, "OPTIONS", options_text_position, size_font, spacing, WHITE);
+        DrawTextEx(font, "EXIT", exit_text_position, size_font, spacing, WHITE);
 
         break;
     case Mode::GAME:
-
         for (auto& bullet : bullets) {
             DrawRectanglePro(Rectangle{bullet.position.x+2.5f,bullet.position.y,10,5}, Vector2{5,5}, bullet.rotation, WHITE);
             if(debug) DrawCircle(bullet.position.x,bullet.position.y,10,WHITE);
@@ -319,6 +359,17 @@ void draw() {
         if(debug) DrawCircleV(player_position, 16, RED);
 
         DrawTextEx(font, score_text.c_str(), score_position, size_font, spacing, WHITE);
+        break;
+
+    case Mode::OPTIONS:
+        Color color;
+        if(sound_on) {
+            color = GREEN;
+        } else {
+            color = RED;
+        }
+        DrawTextEx(font, sound_text.c_str(), sound_text_position, size_font, spacing, color);
+        break;
 
     default:
         break;
