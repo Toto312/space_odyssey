@@ -46,7 +46,7 @@ bool first_bullet = true;
 
 Texture2D asteroid_texture;
 float time_since_last_asteroid = 0;
-float asteroid_appear_threshold = 0.1f;
+float asteroid_appear_threshold = 0.6f;
 
 Texture2D logo_texture;
 Vector2 logo_position = Vector2{ 400, 100 };
@@ -168,7 +168,7 @@ void make_asteroid() {
 
     Vector2 position = Vector2{static_cast<float>(x), static_cast<float>(y)};
 
-    Vector2 random_point = Vector2{static_cast<float>(GetRandomValue(0,screen_size.x)),static_cast<float>(GetRandomValue(0,screen_size.y))};
+    Vector2 random_point = Vector2{static_cast<float>(GetRandomValue(100,screen_size.x-100)),static_cast<float>(GetRandomValue(100,screen_size.y-100))};
     float angle = Vector2Angle(random_point,Vector2Scale(screen_size,0.5f));
     angle = (angle > 1.f || angle < -1.f) ? std::min(std::max(360-angle*360,-360.f),360.f) : angle*360.f;
 
@@ -277,6 +277,8 @@ void start_again() {
     asteroids.clear();
     bullets.clear();
     score = 0;
+    bullet_avaible = bullet_max;
+    asteroid_appear_threshold = 0.6f;
     player_position = Vector2{ 400, 300 };
 }
 
@@ -307,7 +309,7 @@ void update_ui() {
                 break;
 
             case Mode::OPTIONS:
-                if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.2f - size_sound.x*0.5f,screen_size.y*0.2f - size_sound.y*0.5f,size_sound.x,size_sound.y})) {
+                if(CheckCollisionPointRec(position, Rectangle{screen_size.x*0.3f - size_sound.x*0.5f,screen_size.y*0.3f - size_sound.y*0.5f,size_sound.x,size_sound.y})) {
                     sound_on = !sound_on;
                 }
                 break;
@@ -318,18 +320,27 @@ void update_ui() {
     }
 }
 
+void update_difficulty() {
+    if(score % 10 == 0 && score != 0) {
+        asteroid_appear_threshold = -1.f/200*score+0.5f;
+    }
+}
+
 void update() {
     if(IsKeyPressed(KEY_P)) {
         pause = !pause;
     }
+
     if(IsKeyPressed(KEY_ESCAPE)) {
         mode = Mode::MENU;
         pause = true;
     }
+
     update_player();
     update_bullets();
     update_asteroids();
     update_collisions();
+    update_difficulty();
 
     update_ui();
 }
@@ -355,9 +366,9 @@ void draw() {
     Vector2 size_exit = MeasureTextEx(font, exit_text.c_str(), size_font, spacing);
     Vector2 exit_text_position = Vector2{screen_size.x*0.5f - size_exit.x*0.5f,screen_size.y*0.7f - size_exit.y*0.5f};
 
-    std::string sound_text = std::string("Sound: ") + (sound_on ? std::string("True") : std::string("false"));
+    std::string sound_text = std::string("Sound: ") + (sound_on ? std::string("True") : std::string("False"));
     Vector2 size_sound = MeasureTextEx(font, sound_text.c_str(), 40, spacing);
-    Vector2 sound_text_position = Vector2{screen_size.x*0.2f - size_sound.x*0.5f,screen_size.y*0.2f - size_sound.y*0.5f};
+    Vector2 sound_text_position = Vector2{screen_size.x*0.3f - size_sound.x*0.5f,screen_size.y*0.3f - size_sound.y*0.5f};
 
 
     DrawTextureEx(bg_texture, Vector2{0,0}, 0, 13, WHITE);
