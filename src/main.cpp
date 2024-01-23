@@ -25,6 +25,8 @@ Mode mode = Mode::MENU;
 bool sound_on = true;
 
 Sound fx_shoot;
+Sound fx_die;
+Sound fx_explotion;
 
 Font font;
 int size_font = 30;
@@ -35,6 +37,12 @@ Vector2 player_position = Vector2{ 400, 300 };
 float player_speed = 400.f;
 float player_rotation = 0;
 float rotation_speed = 200.f;
+
+int bullet_max = 5;
+int bullet_avaible = bullet_max;
+float time_since_last_reload = 0;
+float reload_threshold = 0.5f;
+bool first_bullet = true;
 
 Texture2D asteroid_texture;
 float time_since_last_asteroid = 0;
@@ -112,6 +120,8 @@ void load() {
 
     font = LoadFont("assets/font.ttf");
     fx_shoot = LoadSound("assets/shooting.mp3");
+    fx_die = LoadSound("assets/die.mp3");
+    fx_explotion = LoadSound("assets/explotion.mp3");
 }
 
 void unload() {
@@ -122,12 +132,26 @@ void unload() {
 
     UnloadFont(font);
     UnloadSound(fx_shoot);
+    UnloadSound(fx_die);
+    UnloadSound(fx_explotion);
 
     CloseAudioDevice();
 }
 
 void make_bullet() {
+    if(GetTime() - time_since_last_reload < reload_threshold) {
+        return;
+    }
+
+    bullet_avaible--;
+
+    if(bullet_avaible<=0) {
+        bullet_avaible = bullet_max;
+        time_since_last_reload = GetTime();
+    }
+
     if(sound_on) PlaySound(fx_shoot);
+
     Bullet bullet = Bullet{player_position,player_rotation-90.f};
     bullets.push_back(bullet);
 }
@@ -200,6 +224,7 @@ void update_collisions() {
     for (auto& asteroid : asteroids) {
         // check player collision
         if(CheckCollisionCircles(Vector2{asteroid.position.x+asteroid.size.x/2,asteroid.position.y+asteroid.size.y/2}, asteroid.size.x/2.5, player_position, 16)) {
+            if(sound_on) PlaySound(fx_die);
             start_again();
             return;
         }
@@ -218,6 +243,7 @@ void update_collisions() {
     for (std::vector<Asteroid>::iterator it1 = asteroids.begin(); it1 != asteroids.end();) {
         for (std::vector<Bullet>::iterator it = bullets.begin(); it != bullets.end();) {
             if(CheckCollisionCircles(Vector2{it1->position.x+it1->size.x/2,it1->position.y+it1->size.y/2}, it1->size.x/2.5, it->position, 10)) {
+                if(sound_on) PlaySound(fx_explotion);
                 it = bullets.erase(it);
                 it1 = asteroids.erase(it1);
                 score++;
@@ -312,6 +338,10 @@ void draw() {
     std::string score_text = std::string("Score: ")+std::to_string(score);
     Vector2 size = MeasureTextEx(font, score_text.c_str(), size_font, spacing);
     Vector2 score_position = Vector2{screen_size.x - size.x - size.x*0.1f,screen_size.y*0.05f};
+    
+    std::string bullets_text = std::string("Bullets: ")+(GetTime() - time_since_last_reload < reload_threshold ? "0" : std::to_string(bullet_avaible));
+    Vector2 size_bullets_font = MeasureTextEx(font, bullets_text.c_str(), size_font, spacing);
+    Vector2 bullets_text_position = Vector2{screen_size.x*0.1f,screen_size.y*0.1f};
 
     std::string play_text = std::string("PLAY");
     Vector2 size_play = MeasureTextEx(font, play_text.c_str(), size_font, spacing);
@@ -359,6 +389,7 @@ void draw() {
         if(debug) DrawCircleV(player_position, 16, RED);
 
         DrawTextEx(font, score_text.c_str(), score_position, size_font, spacing, WHITE);
+        DrawTextEx(font, bullets_text.c_str(), bullets_text_position, size_font, spacing, WHITE);
         break;
 
     case Mode::OPTIONS:
