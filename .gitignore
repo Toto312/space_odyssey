@@ -1,3 +1,6 @@
 Makefile
 bin/*
 .vscode/*
+src/my.rc
+src/my.res
+TODO
